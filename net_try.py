@@ -15,16 +15,115 @@ import torch.nn as nn
 class try_net(nn.Module):
     def __init__(self):
         super(try_net,self).__init__()
-        self.conv1 = nn.Conv2d(3,6,3,1,1)
+        self.conv1_1 = nn.Conv2d(3,64,3,1,1)
+        self.conv1_2 = nn.Conv2d(64,64,3,1,1)
+        self.conv1_3 = nn.Conv2d(128,64,3,1,1)
+        
+        self.conv2_1 = nn.Conv2d(64,128,3,1,1)
+        self.conv2_2 = nn.Conv2d(128,128,3,1,1)
+        self.conv2_3 = nn.Conv2d(256,128,3,1,1)
+        
+        self.conv3_1 = nn.Conv2d(128,256,3,1,1)
+        self.conv3_2 = nn.Conv2d(256,256,3,1,1)
+        self.conv3_3 = nn.Conv2d(512,256,3,1,1)
+        
+        self.conv4_1 = nn.Conv2d(256,512,3,1,1)
+        self.conv4_2 = nn.Conv2d(512,512,3,1,1)
+        self.conv4_3 = nn.Conv2d(1024,512,3,1,1)
+        
         self.pool = nn.MaxPool2d(2)
-        self.conv2 = nn.Conv2d(6,2,3,1,1)
-        self.up = nn.UpsamplingBilinear2d(scale_factor = 2)
+        self.deconv1 = nn.ConvTranspose2d(512,512,2,2,0)
+        self.deconv2 = nn.ConvTranspose2d(512,256,2,2,0)
+        self.deconv3 = nn.ConvTranspose2d(256,128,2,2,0)
+        self.deconv4 = nn.ConvTranspose2d(128,64,2,2,0)
+        
+        self.conv_more = nn.Conv2d(64,2,3,1,1)
+        
+        self.relu = nn.ReLU()
+        
+        self.bn_1 = nn.BatchNorm2d(128)
+        self.bn_2 = nn.BatchNorm2d(256)
+        self.bn_3 = nn.BatchNorm2d(512)
+        self.bn_4 = nn.BatchNorm2d(1024)
+        
+    
+   
         
     def forward(self,x):
-        x = self.conv1(x)
-        x = self.pool(x)
-        x = self.conv2(x)
-        x = self.up(x)
+        local = []
+        
+        
+        x = self.conv1_1(x)
+        x = self.relu(x)
+        x = self.conv1_2(x)#64
+        x = self.relu(x)
+        local.append(x.contiguous())
+        x = self.pool(x)#64*128*128
+        
+        
+        x = self.conv2_1(x)
+        x = self.relu(x)
+        x = self.conv2_2(x)
+        x = self.relu(x)
+        local.append(x.contiguous())
+        x = self.pool(x)#256*256*64
+        x = self.bn_1(x)
+        
+        
+        x = self.conv3_1(x)
+        x = self.relu(x)
+        x = self.conv3_2(x)
+        x = self.relu(x)
+        local.append(x.contiguous())
+        x = self.pool(x)#32
+        x = self.bn_2(x)
+        
+        x = self.conv4_1(x)
+        x = self.relu(x)
+        x = self.conv4_2(x)
+        x = self.relu(x)
+        local.append(x.contiguous())
+        x = self.pool(x)#16
+        x = self.bn_3(x)
+        
+        x = self.deconv1(x)#256
+        x = self.relu(x)
+        x = torch.cat([x,local[3]],dim = 1)
+        x = self.bn_4(x)
+        x = self.conv4_3(x)
+        x = self.relu(x)
+        x = self.conv4_2(x)#512
+        x = self.relu(x)
+        
+        
+        x = self.deconv2(x)#128
+        x = self.relu(x)
+        x = torch.cat([x,local[2]],dim = 1)#512
+        x = self.conv3_3(x)
+        x = self.relu(x)
+        x = self.conv3_2(x)
+        x = self.relu(x)
+        #256
+        
+        
+        x = self.deconv3(x)
+        x = self.relu(x)
+        x = torch.cat([x,local[1]],dim = 1)#256
+        x = self.conv2_3(x)
+        x = self.relu(x)
+        x = self.conv2_2(x)
+        x = self.relu(x)
+        
+        x = self.deconv4(x)
+        x = self.relu(x)
+        x = torch.cat([x,local[0]],dim = 1)#128
+        x = self.conv1_3(x)
+        x = self.relu(x)
+        x = self.conv1_2(x)
+        x = self.relu(x)
+        
+        x = self.conv_more(x)
+        
         return x
     
 
