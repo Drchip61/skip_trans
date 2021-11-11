@@ -1,10 +1,34 @@
-# python异常捕获与处理
+# python集合与列表查找差异
 
-### 1. 异常简介
-* 异常不是错误
+### 1. 集合与列表查找对比
+* 大于大量数据查找，效率差距到底有多大？
 
-  错误通常指的是语法错误，可以人为避免。
-  异常是指在语法逻辑正确的而前提下，出现的问题。
+  先看一组实例：
+  ```bash
+  
+import time
+import numpy as np
+ 
+nums = np.random.randint( 0, 1e7, int(1e3))
+set1 = set(np.random.randint(0, 1e7, int(1e5)))
+list1 = list(set1)
+ 
+t1 = time.time()
+for i in nums:
+    i in set1
+t2 = time.time()
+for i in nums:
+    i in list1
+t3 = time.time()
+print(t2-t1)
+print(t3-t2)
+  ```
+  
+  结果展示：
+  ```bash
+  0.0009751319885253906
+  3.9837825298309326
+  ```
 
 * 异常即是一个事件
   该事件会在程序执行过程中发生，影响了程序的正常执行。一般情况下，在Python无法正常处理程序时就会发生一个异常。异常是Python对象，表示一个错误。当Python脚本发生异常时我们需要捕获处理它，否则程序会终止执行。
