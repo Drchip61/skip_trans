@@ -5,23 +5,22 @@
 
   先看一组实例：
   ```bash
-  
-import time
-import numpy as np
- 
-nums = np.random.randint( 0, 1e7, int(1e3))
-set1 = set(np.random.randint(0, 1e7, int(1e5)))
-list1 = list(set1)
- 
-t1 = time.time()
-for i in nums:
-    i in set1
-t2 = time.time()
-for i in nums:
-    i in list1
-t3 = time.time()
-print(t2-t1)
-print(t3-t2)
+  import time
+  import numpy as np
+
+  nums = np.random.randint( 0, 1e7, int(1e3))
+  set1 = set(np.random.randint(0, 1e7, int(1e5)))
+  list1 = list(set1)
+
+  t1 = time.time()
+  for i in nums:
+      i in set1
+  t2 = time.time()
+  for i in nums:
+      i in list1
+  t3 = time.time()
+  print(t2-t1)
+  print(t3-t2)
   ```
   
   结果展示：
