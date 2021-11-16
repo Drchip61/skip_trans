@@ -109,149 +109,84 @@ new_allocated += newsize
 
 Python中使用使用开放地址法解决冲突。
 
-
-* raise语法格式
-
-```bash
-raise [exceptionName[(reason)]]
-```
-
-等价于
+CPython使用伪随机探测(pseudo-random probing)的散列表(hash table)作为字典的底层数据结构。由于这个实现细节，只有可哈希的对象才能作为字典的键。字典的三个基本操作（添加元素，获取元素和删除元素）的平均事件复杂度为O(1)。
 
 ```bash
-raise  # 该语句引发当前上下文中捕获的异常（比如在 except 块中），或默认引发 RuntimeError 异常。
-raise exceptionName  # 表示引发执行类型的异常。
-raise exceptionName(reason)   # 在引发指定类型的异常的同时，附带异常的描述信息。
+Python中所有不可变的内置类型都是可哈希的。
+可变类型（如列表，字典和集合）就是不可哈希的，因此不能作为字典的键。
 ```
 
-举例1：无参数raise
+常见的哈希碰撞解决方法：
+
+* 1 开放寻址法（open addressing）
+
+  开放寻址法中，所有的元素都存放在散列表里，当产生哈希冲突时，通过一个探测函数计算出下一个候选位置，如果下一个获选位置还是有冲突，那么不断通过探测函数往下找，直到找个一个空槽来存放待插入元素。
+
+  开放地址的意思是除了哈希函数得出的地址可用，当出现冲突的时候其他的地址也一样可用，常见的开放地址思想的方法有线性探测再散列，二次探测再散列等，这些方法都是在第一选择被占用的情况下的解决方法。
+
+* 2 再哈希法
+
+  这个方法是按顺序规定多个哈希函数，每次查询的时候按顺序调用哈希函数，调用到第一个为空的时候返回不存在，调用到此键的时候返回其值。
+
+* 3 链地址法
+
+  将所有关键字哈希值相同的记录都存在同一线性链表中，这样不需要占用其他的哈希地址，相同的哈希值在一条链表上，按顺序遍历就可以找到。
+
+* 4 公共溢出区
+
+   其基本思想是：所有关键字和基本表中关键字为相同哈希值的记录，不管他们由哈希函数得到的哈希地址是什么，一旦发生冲突，都填入溢出表。
+
+* 5 装填因子α
+
+  一般情况下，处理冲突方法相同的哈希表，其平均查找长度依赖于哈希表的装填因子。哈希表的装填因子定义为表中填入的记录数和哈希表长度的比值，也就是标志着哈希表的装满程度。直观看来，α越小，发生冲突的可能性就越小，反之越大。一般0.75比较合适，涉及数学推导。
+
+在python中一个key-value是一个entry，
+
+entry有三种状态。
 ```bash
->>> raise
-Traceback (most recent call last):
-  File "<pyshell#0>", line 1, in <module>
-    raise
-RuntimeError: No active exception to reraise
+Unused： me_key == me_value == NULL
+
+Unused是entry的初始状态，key和value都为NULL。插入元素时，Unused状态转换成Active状态。这是me_key为NULL的唯一情况。
+
+Active： me_key != NULL and me_key != dummy 且 me_value != NULL
+
+插入元素后，entry就成了Active状态，这是me_value唯一不为NULL的情况，删除元素时Active状态刻转换成Dummy状态。
+
+Dummy： me_key == dummy 且 me_value == NULL
 ```
-举例2：raise exceptionName
-```bash
->>> raise ZeroDivisionError
-Traceback (most recent call last):
-  File "<pyshell#1>", line 1, in <module>
-    raise ZeroDivisionError
-ZeroDivisionError
-```
-举例3：raise exceptionName（reason）：
-```bash
->>> raise ZeroDivisionError('除数不能为零')
-Traceback (most recent call last):
-  File "<pyshell#2>", line 1, in <module>
-    raise ZeroDivisionError('除数不能为零')
-ZeroDivisionError: 除数不能为零
-```
+此处的dummy对象实际上一个PyStringObject对象，仅作为指示标志。Dummy状态的元素可以在插入元素的时候将它变成Active状态，但它不可能再变成Unused状态。
 
-* 配合try主动引发异常
-raise 语句引发的异常通常用 try except（else finally）异常处理结构来捕获并进行处理。
-使用 raise 语句引发异常，程序的执行是正常的，手动抛出的异常并不会导致程序崩溃。
-  * 示例：
-  ```bash
-  try:
-    num1 = int(input('输入一个被除数 num1：'))  # 用户输入一个被除数
-    num2 = int(input('输入一个除数 num2：'))  # 用户输入一个除数
-    result = num1 / num2
-    # 判断用户输入的除数是否为零
-    if (num2 == 0):
-        raise ZeroDivisionError
-except ZeroDivisionError as e:
-    print('引发异常：', repr(e))
+为什么entry有Dummy状态呢？这是因为采用开放寻址法中，遇到哈希冲突时会找到下一个合适的位置，例如某元素经过哈希计算应该插入到A处，但是此时A处有元素的，通过探测函数计算得到下一个位置B，仍然有元素，直到找到位置C为止，此时ABC构成了探测链，查找元素时如果hash值相同，那么也是顺着这条探测链不断往后找，当删除探测链中的某个元素时，比如B，如果直接把B从哈希表中移除，即变成Unused状态，那么C就不可能再找到了，因为AC之间出现了断裂的现象，正是如此才出现了第三种状态---Dummy，Dummy是一种类似的伪删除方式，保证探测链的连续性。
 
-```
-* 运行结果：
-```bash
-输入一个被除数 num1：6
-输入一个被除数 num2：0
-引发异常： ZeroDivisionError('division by zero')
-```
-* 自定义异常
-你可以通过创建一个新的异常类来拥有自己的异常。异常类继承自 Exception 类，可以直接继承，或者间接继承，例如：
-```bash
-class MyError(Exception):
-   def __init__(self, value):
-       self.value = value
-       return repr(self.value)
-   # raise MyError('oops!')
-   print('My exception occurred, value:', e.value)
-```
+set集合和dict一样也是基于散列表的，只是他的表元只包含键的引用，而没有对值的引用，其他的和dict基本上是一致的，所以在此就不再多说了。并且dict要求键必须是能被哈希的不可变对象，因此普通的set无法作为dict的键，必须选择被“冻结”的不可变集合类：frozenset。顾名思义，一旦初始化，集合内数据不可修改。
 
-### 4. assert用法
+一般情况下普通的顺序表数组存储结构也可以认为是简单的哈希表，虽然没有采用哈希函数（取余），但同样可以在O(1)时间内进行查找和修改。但是这种方法存在两个问题：扩展性不强；浪费空间。
 
-设想一个情况，我们的代码中包含数据读取和数据处理的部分，其中数据处理需要GPU计算，而数据读取也需要大量时间，甚至读取数据之后还需要进一步的处理，如果我们在处理完之后才发现GPU不可用，就大大降低了效率，故而需要一种提前判断的方式去解决此问题。
+dict是用来存储键值对结构的数据的，set其实也是存储的键值对，只是默认键和值是相同的。Python中的dict和set都是通过散列表来实现的。下面来看与dict相关的几个比较重要的问题：
 
-因此我们提出断言assert！
+dict中的数据是无序存放的
 
-Python assert（断言）用于判断一个表达式，在表达式条件为 false 的时候触发异常。
-断言可以在条件不满足程序运行的情况下直接返回错误，而不必等待程序运行后出现崩溃的情况。
+操作的时间复杂度，插入、查找和删除都可以在O(1)的时间复杂度
+
+这是因为查找相当于将查找值通过哈希函数运算之后，直接得到对应的桶位置（不考虑哈希冲突的理想情况下），故而复杂度为O（1）
+
+由于键的限制，只有可哈希的对象才能作为字典的键和set的值。可hash的对象即python中的不可变对象和自定义的对象。可变对象(列表、字典、集合)是不能作为字典的键和st的值的。
+与list相比：list的查找和删除的时间复杂度是O(n)，添加的时间复杂度是O(1)。但是dict使用hashtable内存的开销更大。为了保证较少的冲突，hashtable的装载因子，一般要小于0.75，在python中当装载因子达到2/3的时候就会自动进行扩容。
 
 
-assert语法：
-```bash
-assert expression
-```
-等价于：
-```bash
-if not expression:
-    raise AssertionError(arguments)
-```
-实例：
-```bash
-import torch
-assert (torch.cuda.is_available()), "本机器需要有可用的GPU才能运行此代码！"
-```
-### 5.Traceback用法
 
-Trachback是用来获取异常的详细信息的。
-try…except…的输出结果只能让你知道报了这个错误，却不知道在哪个文件哪个函数哪一行报的错。使用 traceback 模块可以非常清楚的了解具体错误内容在哪。
-* Python程序的traceback信息均来源于一个叫做traceback object的对象，而这个traceback object通常是通过函数sys.exc_info()来获取的。
-* sys.exc_info()获取了当前处理的exception的相关信息，并返回一个元组。
-  * 元组的第一个数据是异常的类型.
-  * 第二个返回值是异常的value值.
-  * 第三个就是我们要的traceback object.
-示例：
-```bash
-import sys
-
-def func1():
-    raise Exception("--func1 exception--")
-    
-def test():
-    try:
-        func1()
-    except Exception as e:
-        exc_type, exc_value, exc_traceback_obj = sys.exc_info()
-        print("exc_type: %s" % exc_type)
-        print("exc_value: %s" % exc_value)
-        print("exc_traceback_obj: %s" % exc_traceback_obj)
- 
- test()
-```
-结果：
-```bash
-exc_type: <class 'Exception'>
-exc_value: --func1 exception--
-exc_traceback_obj: <traceback object at 0x0000024D2F6A22C8>
-
-Process finished with exit code 0
 ```
 
 ## Reference
-* [怕蛇的人怎么学python](https://mp.weixin.qq.com/s?__biz=MzA4Nzg3Njg1OA==&mid=2247484069&idx=1&sn=ebb352dc62949fcbd79a397f2657b235&chksm=9033f730a7447e26bcdeb8b08834fa335c5a194f1ac0864e2ea9ff068c72fde09b32f11f2153&mpshare=1&scene=23&srcid=1019G5KQ4IZVJZC6kOJmHRhD&sharer_sharetime=1635991918869&sharer_shareid=4bbdc95dbeb4de0f49bd4127857cc1c2#rd)
-* [python raise语句详解](https://blog.csdn.net/manongajie/article/details/106288078?ops_request_misc=%257B%2522request%255Fid%2522%253A%2522163600172016780265497497%2522%252C%2522scm%2522%253A%252220140713.130102334..%2522%257D&request_id=163600172016780265497497&biz_id=0&utm_medium=distribute.pc_search_result.none-task-blog-2~all~first_rank_ecpm_v1~rank_v31_ecpm-3-106288078.pc_search_result_hbase_insert&utm_term=raise%E6%89%8B%E5%8A%A8%E5%BC%95%E5%8F%91%E5%BC%82%E5%B8%B8&spm=1018.2226.3001.4187)
-* [Traceback异常打印](https://blog.csdn.net/aiao34980/article/details/101488938?ops_request_misc=&request_id=&biz_id=102&utm_term=traceback&utm_medium=distribute.pc_search_result.none-task-blog-2~all~sobaiduweb~default-0-101488938.pc_search_result_hbase_insert&spm=1018.2226.3001.4187)
+* [python set和dict底层联系](https://blog.csdn.net/liuweiyuxiang/article/details/98943272?ops_request_misc=%257B%2522request%255Fid%2522%253A%2522163662590416780271512687%2522%252C%2522scm%2522%253A%252220140713.130102334.pc%255Fall.%2522%257D&request_id=163662590416780271512687&biz_id=0&utm_medium=distribute.pc_search_result.none-task-blog-2~all~first_rank_ecpm_v1~rank_v31_ecpm-4-98943272.first_rank_v2_pc_rank_v29&utm_term=python%E9%9B%86%E5%90%88set%E5%BA%95%E5%B1%82%E5%8E%9F%E7%90%86&spm=1018.2226.3001.4187)
+* [python List图截](https://blog.csdn.net/u014029783/article/details/107992840)
+
 
 ## Citations
 
 ```bibtex
 @
-  title={Python异常捕获与处理},
+  title={Python集合与列表查找原理},
   author={Tianyu Yan},
   date={2021/11/4}
 }
