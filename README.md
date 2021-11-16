@@ -143,7 +143,8 @@ Python中所有不可变的内置类型都是可哈希的。
 
 在python中一个key-value是一个entry，
 
-entry有三种状态。
+entry有三种状态：
+
 ```bash
 Unused： me_key == me_value == NULL
 
@@ -155,6 +156,7 @@ Active： me_key != NULL and me_key != dummy 且 me_value != NULL
 
 Dummy： me_key == dummy 且 me_value == NULL
 ```
+
 此处的dummy对象实际上一个PyStringObject对象，仅作为指示标志。Dummy状态的元素可以在插入元素的时候将它变成Active状态，但它不可能再变成Unused状态。
 
 为什么entry有Dummy状态呢？这是因为采用开放寻址法中，遇到哈希冲突时会找到下一个合适的位置，例如某元素经过哈希计算应该插入到A处，但是此时A处有元素的，通过探测函数计算得到下一个位置B，仍然有元素，直到找到位置C为止，此时ABC构成了探测链，查找元素时如果hash值相同，那么也是顺着这条探测链不断往后找，当删除探测链中的某个元素时，比如B，如果直接把B从哈希表中移除，即变成Unused状态，那么C就不可能再找到了，因为AC之间出现了断裂的现象，正是如此才出现了第三种状态---Dummy，Dummy是一种类似的伪删除方式，保证探测链的连续性。
